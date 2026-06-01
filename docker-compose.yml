@@ -1,0 +1,61 @@
+# One-click dev stack: `docker compose up`
+# Both packages bind-mounted for hot reload (uvicorn --reload, vite HMR).
+# Backend reserves an NVIDIA GPU; models cached in the shared hf-cache volume.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flex-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Inpainting engine — swap to ShinoharaHare/Waifu-Inpaint-XL or a FLUX Fill id
+      MODEL_ID: "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+      SEGMENTER_WEIGHTS: "/data/models/anime-face-seg.pt"
+      CLIP_MODEL: "ViT-L-14"
+      CLIP_PRETRAINED: "openai"
+      DEVICE: "cuda"
+      DATA_DIR: "/data"
+      HF_HOME: "/root/.cache/huggingface"
+      # Token only needed for gated models (e.g. FLUX); supply via .env, never commit
+      HUGGING_FACE_HUB_TOKEN: "${HUGGING_FACE_HUB_TOKEN:-}"
+    volumes:
+      - ./backend:/app          # hot mount source
+      - hf-cache:/root/.cache/huggingface
+      - app-data:/data
+    command: uvicorn app.infrastructure:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s   # model warm-load
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: flex-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE: "/api"
+    volumes:
+      - ./frontend:/app         # hot mount source
+      - /app/node_modules       # keep container-installed deps
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    depends_on:
+      - backend
+
+volumes:
+  hf-cache:
+  app-data:
