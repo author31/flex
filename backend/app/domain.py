@@ -44,6 +44,18 @@ class InvalidRequest(DomainError):
     """One-of / required-field violations on an edit request."""
 
 
+class UnknownModel(DomainError):
+    """A requested model key is not in the configured registry (feature 002)."""
+
+
+class EmptyDataset(DomainError):
+    """A dataset with no items cannot be saved or run (feature 002)."""
+
+
+class IncompleteItem(DomainError):
+    """A dataset row is missing its region/box selection or prompt (feature 002)."""
+
+
 # --------------------------------------------------------------------------- #
 # Enums
 # --------------------------------------------------------------------------- #
@@ -154,6 +166,30 @@ class EditResult:
 
 
 @dataclass
+class MeshJob:
+    """Expert feature: a 3D mesh exported from a completed edit's result image."""
+
+    id: str
+    edit_id: str
+    source_image_id: str
+    status: JobStatus = JobStatus.PROCESSING
+    mesh_id: str | None = None
+    error: str | None = None
+
+    def mark_completed(self, mesh_id: str) -> None:
+        if self.status is not JobStatus.PROCESSING:
+            raise InvalidTransition(f"cannot complete a {self.status.value} mesh job")
+        self.status = JobStatus.COMPLETED
+        self.mesh_id = mesh_id
+
+    def mark_failed(self, error: str) -> None:
+        if self.status is not JobStatus.PROCESSING:
+            raise InvalidTransition(f"cannot fail a {self.status.value} mesh job")
+        self.status = JobStatus.FAILED
+        self.error = error
+
+
+@dataclass
 class EditJob:
     id: str
     image_id: str
@@ -229,3 +265,107 @@ AUTO_REGIONS: tuple[FacialRegion, ...] = (
     FacialRegion.MOUTH,
     FacialRegion.EYEBROWS,
 )
+
+
+# --------------------------------------------------------------------------- #
+# Study workspace (feature 002) — entities, value objects, rules (pure)
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Dataset:
+    """A systematic-study definition: default model + params over an ordered item set."""
+
+    id: str
+    name: str
+    model_key: str
+    params: EditParams
+
+
+@dataclass
+class DatasetItem:
+    """One study row: an image + a region selection (named region OR drag box) + prompt."""
+
+    id: str
+    dataset_id: str
+    image_id: str
+    prompt: str
+    position: int
+    region: FacialRegion | None = None
+    box: tuple[int, int, int, int] | None = None
+
+
+@dataclass
+class Revision:
+    """One batch-edit run of a dataset; number auto-increments per dataset."""
+
+    id: str
+    dataset_id: str
+    number: int
+    model_key: str
+    params: EditParams
+    status: JobStatus = JobStatus.PROCESSING
+    created_at: str | None = None
+
+    def mark_completed(self) -> None:
+        if self.status is not JobStatus.PROCESSING:
+            raise InvalidTransition(f"cannot complete a {self.status.value} revision")
+        self.status = JobStatus.COMPLETED
+
+    def mark_failed(self) -> None:
+        if self.status is not JobStatus.PROCESSING:
+            raise InvalidTransition(f"cannot fail a {self.status.value} revision")
+        self.status = JobStatus.FAILED
+
+
+@dataclass
+class MetricRecord:
+    """Evaluation outcome for one dataset item within one revision."""
+
+    id: str
+    revision_id: str
+    dataset_item_id: str
+    status: JobStatus
+    result_image_id: str | None = None
+    evaluation: EvaluationRecord | None = None
+    error: str | None = None
+
+
+def next_revision_number(existing_max: int | None) -> int:
+    """Strictly monotonic per dataset: previous highest + 1 (1 for the first run)."""
+    return (existing_max or 0) + 1
+
+
+def validate_dataset_item(
+    region: str | None,
+    box: list[int] | tuple[int, ...] | None,
+    prompt: str,
+) -> tuple[FacialRegion | None, tuple[int, int, int, int] | None, str]:
+    """Validate one row: exactly one of named region / box, non-empty prompt.
+
+    Returns the normalized (region, box, cleaned_prompt). A box maps to CUSTOM at run time.
+    """
+    if (region is None) == (box is None):
+        raise InvalidRequest("provide exactly one of 'region' or 'box' per item")
+    resolved_box: tuple[int, int, int, int] | None = None
+    resolved_region: FacialRegion | None = None
+    if box is not None:
+        if len(tuple(box)) != 4:
+            raise InvalidRequest("box must be [x, y, w, h]")
+        x, y, w, h = (int(v) for v in box)
+        resolved_box = (x, y, w, h)
+    else:
+        assert region is not None  # narrowed by the one-of check above
+        resolved_region = FacialRegion(region)  # raises ValueError on bad region
+    return resolved_region, resolved_box, validate_prompt(prompt)
+
+
+def validate_dataset_items(rows: list[dict]) -> None:
+    """Validate a whole dataset's rows before saving (FR-006). Raises on first problem."""
+    if not rows:
+        raise EmptyDataset("a dataset must have at least one item")
+    for row in rows:
+        try:
+            validate_dataset_item(row.get("region"), row.get("box"), row.get("prompt") or "")
+        except (InvalidRequest, EmptyPrompt, ValueError) as exc:
+            raise IncompleteItem(f"item for image {row.get('image_id')!r}: {exc}") from exc

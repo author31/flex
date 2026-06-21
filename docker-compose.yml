@@ -16,15 +16,30 @@ services:
       SEGMENTER_WEIGHTS: "/data/models/anime-face-seg.pt"
       CLIP_MODEL: "ViT-L-14"
       CLIP_PRETRAINED: "openai"
+      # Expert 3D export. "relief" = built-in heightmap mesh (no model, default).
+      # Set to "triposr" for full image→3D (needs the TripoSR package + weights).
+      MESH_BACKEND: "relief"
+      MESH_MODEL: "stabilityai/TripoSR"
       DEVICE: "cuda"
       DATA_DIR: "/data"
       HF_HOME: "/root/.cache/huggingface"
-      # Token only needed for gated models (e.g. FLUX); supply via .env, never commit
-      HUGGING_FACE_HUB_TOKEN: "${HUGGING_FACE_HUB_TOKEN:-}"
+      # Study workspace (feature 002): Postgres for dataset/revision/metric metadata.
+      DATABASE_URL: "postgresql+psycopg://flex:flex@postgres:5432/flex"
+      # Named-model registry (JSON). `finetuned` shares the base id and adds a LoRA
+      # adapter via LORAS below (keys must match).
+      MODELS: '{"base":"diffusers/stable-diffusion-xl-1.0-inpainting-0.1","finetuned":"diffusers/stable-diffusion-xl-1.0-inpainting-0.1"}'
+      # LoRA checkpoints (key -> adapter dir). Trained by scripts/train_inpaint_lora.py,
+      # bind-mounted at /data/lora (see volumes). Override step-N as needed.
+      LORAS: '{"finetuned":"/data/lora/lora-v1/step-2000"}'
+      # Token only needed for gated models (e.g. FLUX). SDXL-inpaint is public, so
+      # left empty. If you add a gated model, paste the token here (this stack runs
+      # local-only; for a shared deploy use a real secret instead).
+      HUGGING_FACE_HUB_TOKEN: ""
     volumes:
       - ./backend:/app          # hot mount source
       - hf-cache:/root/.cache/huggingface
       - app-data:/data
+      - ./scripts/runs:/data/lora:ro  # LoRA adapters from scripts/train_inpaint_lora.py
     command: uvicorn app.infrastructure:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
@@ -32,6 +47,9 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s   # model warm-load
+    depends_on:
+      postgres:
+        condition: service_healthy
     deploy:
       resources:
         reservations:
@@ -40,13 +58,28 @@ services:
               count: 1
               capabilities: [gpu]
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: flex-postgres
+    environment:
+      POSTGRES_USER: "flex"
+      POSTGRES_PASSWORD: "flex"
+      POSTGRES_DB: "flex"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: flex-frontend
     ports:
-      - "5173:5173"
+      - "5000:5173"   # host 5000 → container 5173 (5173 taken on host)
     environment:
       VITE_API_BASE: "/api"
     volumes:
@@ -59,3 +92,4 @@ services:
 volumes:
   hf-cache:
   app-data:
+  pg-data:

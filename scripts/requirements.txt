@@ -1,0 +1,18 @@
+# Standalone deps for the dataset utility scripts (NOT the backend app).
+# Install into a separate venv:  python -m venv .venv && pip install -r requirements.txt
+pillow>=10.4
+torch>=2.4
+# gemma4 image processor imports torchvision.transforms.v2
+torchvision>=0.19
+# gemma4 backend needs a transformers build with AutoModelForMultimodalLM (Gemma 4, 2026-03)
+transformers>=4.52
+accelerate>=0.34
+# qwen2-vl backend (optional)
+qwen-vl-utils>=0.0.8
+# anthropic backend (optional)
+anthropic>=0.39
+# train_inpaint_lora.py (SDXL inpaint LoRA finetune)
+diffusers>=0.31
+peft>=0.13
+accelerate>=0.34
+numpy>=2.0

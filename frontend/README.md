@@ -13,7 +13,7 @@ before/after + metrics (`ComparisonView` + `MetricsPanel`).
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173 (proxies /api → backend:8000)
+npm run dev        # http://localhost:5173 local; via Docker → host http://localhost:5000
 ```
 
 ## Test

@@ -17,8 +17,22 @@ coverage/
 
 # Data / models
 backend/data/
+scripts/data/
+scripts/runs/
 *.log
 .DS_Store
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
+*.swp
 
 # Local secrets
 .env

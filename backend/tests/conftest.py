@@ -17,8 +17,15 @@ from app.domain import (
     EvaluationRecord,
     FacialRegion,
     Mask,
+    UnknownModel,
 )
 from app.infrastructure import Deps, PillowDecoder, Settings, create_app, mask_to_png
+from app.repository import (
+    SqlDatasetRepository,
+    SqlMetricRecordRepository,
+    SqlRevisionRepository,
+    build_session_factory,
+)
 
 
 # --------------------------- fake repositories --------------------------- #
@@ -69,6 +76,28 @@ class FakeMaskRepo:
 
     def get(self, image_id: str, region: FacialRegion) -> bytes | None:
         return self.masks.get((image_id, region.value))
+
+
+class FakeMeshJobRepo:
+    def __init__(self) -> None:
+        self.jobs: dict[str, object] = {}
+
+    def save(self, job) -> None:
+        self.jobs[job.id] = job
+
+    def get(self, job_id: str):
+        return self.jobs.get(job_id)
+
+
+class FakeMeshRepo:
+    def __init__(self) -> None:
+        self.meshes: dict[str, bytes] = {}
+
+    def save(self, mesh_id: str, data: bytes) -> None:
+        self.meshes[mesh_id] = data
+
+    def get(self, mesh_id: str) -> bytes | None:
+        return self.meshes.get(mesh_id)
 
 
 # --------------------------- fake model ports --------------------------- #
@@ -129,6 +158,40 @@ class FakeEvaluator:
         )
 
 
+class FakeMeshGenerator:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate(self, image: bytes) -> bytes:
+        self.calls += 1
+        return b"glTF-FAKE-GLB-BYTES"
+
+
+class FakeModelProvider:
+    """Two configured keys; both back onto the supplied fake inpainter (feature 002)."""
+
+    def __init__(self, inpainter) -> None:
+        self._inpainter = inpainter
+        self._registry = {"base": "base-model", "finetuned": "finetuned-model"}
+        self._loras = {"finetuned": "/data/models/lora/finetuned"}
+        self.requested: list[str] = []
+
+    def models(self) -> dict[str, str]:
+        return dict(self._registry)
+
+    def loras(self) -> dict[str, str]:
+        return dict(self._loras)
+
+    def default_key(self) -> str:
+        return "base"
+
+    def inpainter_for(self, key: str):
+        if key not in self._registry:
+            raise UnknownModel(f"unknown model key {key!r}")
+        self.requested.append(key)
+        return self._inpainter
+
+
 # --------------------------- composed fixtures --------------------------- #
 @pytest.fixture
 def fakes() -> dict:
@@ -137,24 +200,36 @@ def fakes() -> dict:
         "jobs": FakeJobRepo(),
         "results": FakeResultRepo(),
         "masks": FakeMaskRepo(),
+        "mesh_jobs": FakeMeshJobRepo(),
+        "meshes": FakeMeshRepo(),
         "segmenter": FakeSegmenter(),
-        "inpainter": FakeInpainter(),
+        "inpainter": (inpainter := FakeInpainter()),
         "evaluator": FakeEvaluator(),
+        "mesh_generator": FakeMeshGenerator(),
+        "model_provider": FakeModelProvider(inpainter),
     }
 
 
 @pytest.fixture
 def deps(fakes) -> Deps:
+    session_factory = build_session_factory("sqlite://")
     return Deps(
         images=fakes["images"],
         jobs=fakes["jobs"],
         results=fakes["results"],
         masks=fakes["masks"],
+        mesh_jobs=fakes["mesh_jobs"],
+        meshes=fakes["meshes"],
         segmenter=fakes["segmenter"],
         inpainter=fakes["inpainter"],
         evaluator=fakes["evaluator"],
+        mesh_generator=fakes["mesh_generator"],
         decoder=PillowDecoder(),
         settings=Settings(device="cpu", data_dir="/tmp/flex-test"),
+        datasets=SqlDatasetRepository(session_factory),
+        revisions=SqlRevisionRepository(session_factory),
+        metric_records=SqlMetricRecordRepository(session_factory),
+        model_provider=fakes["model_provider"],
     )
 
 

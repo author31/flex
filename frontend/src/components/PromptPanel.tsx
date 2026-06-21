@@ -38,7 +38,7 @@ export function PromptPanel({ onChange }: { onChange: (s: PromptState) => void }
               const next = preset === p ? null : (p as ExpressionPreset);
               setPreset(next);
               setPrompt("");
-              emit({ preset: next, prompt: "" });
+              emit({ preset: next ?? undefined, prompt: "" });
             }}
           >
             {p}
@@ -57,7 +57,7 @@ export function PromptPanel({ onChange }: { onChange: (s: PromptState) => void }
         onChange={(e) => {
           setPrompt(e.target.value);
           setPreset(null);
-          emit({ prompt: e.target.value, preset: null });
+          emit({ prompt: e.target.value, preset: undefined });
         }}
         style={{ width: "100%" }}
       />

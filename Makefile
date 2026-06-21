@@ -17,8 +17,8 @@ build:
 
 ## prepare: download all model checkpoints into the local Docker volumes
 prepare: build
-	@echo "==> SDXL inpainting + open_clip (→ hf-cache volume)"
-	$(COMPOSE) run --rm backend python -c "import os; from huggingface_hub import snapshot_download; import open_clip; snapshot_download(os.environ['MODEL_ID']); open_clip.create_model_and_transforms(os.environ.get('CLIP_MODEL','ViT-L-14'), pretrained=os.environ.get('CLIP_PRETRAINED','openai'))"
+	@echo "==> SDXL inpainting + open_clip + TripoSR (→ hf-cache volume)"
+	$(COMPOSE) run --rm backend python -c "import os; from huggingface_hub import snapshot_download; import open_clip; snapshot_download(os.environ['MODEL_ID']); open_clip.create_model_and_transforms(os.environ.get('CLIP_MODEL','ViT-L-14'), pretrained=os.environ.get('CLIP_PRETRAINED','openai')); snapshot_download(os.environ.get('MESH_MODEL','stabilityai/TripoSR'))"
 	@echo "==> anime face segmentation weights (→ app-data volume, /data/models)"
 	@if [ -z "$(SEG_WEIGHTS_URL)" ]; then \
 		echo "WARN: SEG_WEIGHTS_URL not set — skipping segmenter weights."; \

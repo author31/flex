@@ -38,6 +38,7 @@ export interface CreateEditRequest {
   prompt?: string;
   preset?: ExpressionPreset;
   params?: EditParams;
+  model?: string; // checkpoint key (see listModels); omit for default
 }
 
 export interface Metrics {
@@ -69,6 +70,95 @@ export interface Comparison {
 export interface Presets {
   expressions: ExpressionPreset[];
   regions: FacialRegion[];
+}
+
+export interface MeshStatus {
+  mesh_id: string;
+  status: JobStatus;
+  url?: string | null;
+  error?: string | null;
+}
+
+// --- Study workspace (feature 002) ----------------------------------------- //
+
+export interface ModelInfo {
+  key: string;
+  model_id: string;
+  lora?: string | null; // adapter dir if this checkpoint has a LoRA
+}
+
+export interface ModelsOut {
+  models: ModelInfo[];
+  default: string;
+}
+
+export interface DatasetItemIn {
+  image_id: string;
+  region?: FacialRegion;
+  box?: [number, number, number, number];
+  prompt: string;
+}
+
+export interface CreateDatasetBody {
+  name?: string;
+  model_key: string;
+  params?: EditParams;
+  items: DatasetItemIn[];
+}
+
+export interface DatasetItemOut {
+  id: string;
+  image_id: string;
+  image_url: string;
+  image_width?: number | null;
+  image_height?: number | null;
+  region?: FacialRegion | null;
+  box?: [number, number, number, number] | null;
+  prompt: string;
+  position: number;
+}
+
+export interface RevisionSummary {
+  number: number;
+  model_key: string;
+  status: JobStatus;
+  created_at?: string | null;
+}
+
+export interface DatasetSummary {
+  dataset_id: string;
+  name: string;
+  model_key: string;
+  item_count: number;
+  latest_revision: number | null;
+}
+
+export interface DatasetOut {
+  dataset_id: string;
+  name: string;
+  model_key: string;
+  params: EditParams;
+  items: DatasetItemOut[];
+  revisions: RevisionSummary[];
+}
+
+export interface MetricRecordOut {
+  dataset_item_id: string;
+  status: JobStatus;
+  result_image_id?: string | null;
+  result_url?: string | null;
+  metrics?: Metrics | null;
+  error?: string | null;
+}
+
+export interface RevisionOut {
+  dataset_id: string;
+  number: number;
+  model_key: string;
+  params: EditParams;
+  status: JobStatus;
+  created_at?: string | null;
+  records: MetricRecordOut[];
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -113,5 +203,65 @@ export const api = {
 
   async getComparison(editId: string): Promise<Comparison> {
     return json(await fetch(`${BASE}/edits/${editId}/comparison`));
+  },
+
+  // Expert: 3D mesh export
+  async createMesh(editId: string): Promise<{ mesh_id: string; status: JobStatus }> {
+    return json(await fetch(`${BASE}/edits/${editId}/mesh`, { method: "POST" }));
+  },
+
+  async getMesh(meshId: string): Promise<MeshStatus> {
+    return json(await fetch(`${BASE}/mesh/${meshId}`));
+  },
+
+  // --- Study workspace (feature 002) --------------------------------------- //
+
+  async listModels(): Promise<ModelsOut> {
+    return json(await fetch(`${BASE}/models`));
+  },
+
+  async createDataset(body: CreateDatasetBody): Promise<DatasetOut> {
+    return json(
+      await fetch(`${BASE}/datasets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+  },
+
+  async listDatasets(): Promise<{ datasets: DatasetSummary[] }> {
+    return json(await fetch(`${BASE}/datasets`));
+  },
+
+  async getDataset(datasetId: string): Promise<DatasetOut> {
+    return json(await fetch(`${BASE}/datasets/${datasetId}`));
+  },
+
+  async updateDataset(datasetId: string, body: CreateDatasetBody): Promise<DatasetOut> {
+    return json(
+      await fetch(`${BASE}/datasets/${datasetId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    );
+  },
+
+  async runBatch(
+    datasetId: string,
+    modelKey?: string,
+  ): Promise<{ revision_id: string; number: number; status: JobStatus }> {
+    return json(
+      await fetch(`${BASE}/datasets/${datasetId}/runs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(modelKey ? { model_key: modelKey } : {}),
+      }),
+    );
+  },
+
+  async getRevision(datasetId: string, number: number): Promise<RevisionOut> {
+    return json(await fetch(`${BASE}/datasets/${datasetId}/revisions/${number}`));
   },
 };

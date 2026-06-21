@@ -1,15 +1,30 @@
-/* Monochrome theme tokens. Dark default; invert for surfaces. No accent hue. */
+/* Dark theme with a single accent. Cards stay light for high contrast on the dark page;
+   the nav bar is a bright high-contrast bar; primary actions use the accent. */
 :root {
-  --color-bg: #111111; /* Cod Gray */
-  --color-fg: #ffffff; /* White */
-  --color-text-secondary: #333333;
-  --color-text-muted: #666666;
+  --color-bg: #0d0e11; /* near-black page */
+  --color-bg-elev: #16181d; /* dark elevated panels */
+  --color-fg: #f4f5f7; /* light text on dark */
+  --color-text-secondary: #3a3a42;
+  --color-text-muted: #8a8f98;
 
-  --surface: #ffffff;
-  --surface-fg: #111111;
-  --border: #666666;
-  --radius: 8px;
+  --surface: #ffffff; /* light cards */
+  --surface-fg: #14151a;
+  --surface-muted: #f1f2f4;
+  --border: #2a2d35; /* on dark */
+  --border-light: #d7d9de; /* on light cards */
+
+  --accent: #7c5cff; /* indigo */
+  --accent-hover: #6b49f5;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(124, 92, 255, 0.14);
+
+  --danger: #e5484d;
+  --ok: #30a46c;
+
+  --radius: 10px;
+  --radius-sm: 7px;
   --gap: 16px;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
 
@@ -19,54 +34,240 @@
 
 body {
   margin: 0;
-  background: var(--color-bg);
+  background: radial-gradient(1200px 600px at 50% -200px, #1a1c24 0%, var(--color-bg) 60%);
   color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
 }
 
+h1 {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+a {
+  color: inherit;
+}
+
+/* ---------------------------------------------------------------- nav bar -- */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #ffffff; /* high contrast vs the dark page */
+  color: #14151a;
+  border-bottom: 2px solid var(--accent);
+  box-shadow: 0 2px 18px rgba(0, 0, 0, 0.45);
+}
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-right: 14px;
+}
+.nav-brand .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.nav-link {
+  text-decoration: none;
+  color: #45474f;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-link:hover {
+  background: var(--surface-muted);
+  color: #14151a;
+}
+.nav-link.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* ----------------------------------------------------------------- forms -- */
 button {
   font: inherit;
+  font-weight: 600;
   cursor: pointer;
-  border: 1px solid var(--color-fg);
-  background: transparent;
-  color: var(--color-fg);
-  border-radius: var(--radius);
-  padding: 8px 14px;
+  border: 1px solid var(--border-light);
+  background: var(--surface);
+  color: var(--surface-fg);
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s, transform 0.04s;
 }
 button:hover:not(:disabled) {
-  background: var(--color-fg);
-  color: var(--color-bg);
+  border-color: #14151a;
+  background: #14151a;
+  color: #fff;
+}
+button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 button:disabled {
+  background: transparent;
   border-color: var(--color-text-muted);
   color: var(--color-text-muted);
   cursor: not-allowed;
 }
 button[aria-pressed="true"] {
-  background: var(--color-fg);
-  color: var(--color-bg);
+  background: #14151a;
+  color: #fff;
+  border-color: #14151a;
+}
+
+/* Primary accent action (Save / Run / Generate). */
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
 }
 
 input[type="text"],
 textarea,
-input[type="number"] {
+input[type="number"],
+select {
   font: inherit;
   background: var(--surface);
   color: var(--surface-fg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+textarea {
+  resize: vertical;
+}
+label {
+  font-size: 13px;
+  font-weight: 600;
 }
 
+/* ----------------------------------------------------------------- cards -- */
 .card {
   background: var(--surface);
   color: var(--surface-fg);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius);
   padding: var(--gap);
+  box-shadow: var(--shadow);
+}
+
+/* A study row: image | selected region + prompt. */
+.row-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) 1fr;
+  gap: 18px;
+  align-items: start;
+  background: var(--surface);
+  color: var(--surface-fg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.row-card .row-index {
+  position: absolute;
+  margin: -6px 0 0 -6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 9px;
+  box-shadow: var(--shadow);
+}
+.row-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+@media (max-width: 720px) {
+  .row-card {
+    grid-template-columns: 1fr;
+  }
 }
 
 .muted {
   color: var(--color-text-muted);
 }
 .secondary {
-  color: var(--color-text-secondary);
+  color: #4a4d55;
+}
+
+/* --------------------------------------------------------------- helpers -- */
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px 72px;
+}
+.page-header {
+  padding: 28px 0 8px;
+}
+.page-header p {
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+.toolbar {
+  display: flex;
+  gap: 14px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.field {
+  display: grid;
+  gap: 6px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+}
+.spacer {
+  flex: 1;
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 14px;
+  font-size: 12px;
+  margin: 0;
+}
+.metric-grid b {
+  font-variant-numeric: tabular-nums;
+}
+.empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  text-align: center;
+  color: var(--color-text-muted);
 }

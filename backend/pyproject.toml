@@ -14,8 +14,15 @@ dependencies = [
     # Heavy model deps — lazily imported by infrastructure adapters at runtime.
     "diffusers>=0.31",
     "transformers>=4.45",
+    "peft>=0.13",  # required by diffusers load_lora_weights (scripts/train_inpaint_lora.py adapters)
     "torch>=2.4",
     "open-clip-torch>=2.26",
+    # Expert 3D export: TripoSR (install from git: pip install git+https://github.com/VAST-AI-Research/TripoSR)
+    # produces a trimesh.Trimesh; trimesh handles GLB export.
+    "trimesh>=4.4",
+    # Study-workspace persistence (feature 002): Postgres in compose, SQLite in tests.
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]
